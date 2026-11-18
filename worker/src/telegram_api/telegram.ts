@@ -14,6 +14,7 @@ import { UserFromGetMe } from "telegraf/types";
 import i18n from "../i18n";
 import { LocaleMessages } from "../i18n/type";
 import type { ExtractResult, RawMailRow } from "../models";
+import { htmlToText } from "../html_to_text";
 
 
 // Helper to get messages by userId
@@ -443,8 +444,15 @@ const parseMail = async (
     try {
         const parsedEmail = await commonParseMail(parsedEmailContext);
         let parsedText = parsedEmail?.text || "";
+        // Many transactional mails (e.g. account confirmation emails) are HTML-only:
+        // PostalMime yields an empty `text`, which previously rendered as
+        // "解析失败，请打开 mini app 查看". Fall back to a plain-text conversion of
+        // the HTML body so the message is readable without the mini app.
+        if (!parsedText && parsedEmail?.html) {
+            parsedText = htmlToText(parsedEmail.html) || parsedEmail.html;
+        }
         if (parsedText.length && parsedText.length > 1000) {
-            parsedText = parsedEmail?.text.substring(0, 1000) + `\n\n...\n${msgs.TgMsgTooLongMsg}`;
+            parsedText = parsedText.substring(0, 1000) + `\n\n...\n${msgs.TgMsgTooLongMsg}`;
         }
         return {
             isHtml: false,
